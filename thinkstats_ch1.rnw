@@ -1,0 +1,160 @@
+\documentclass{article}
+\usepackage{/Users/jrauser/Sweave}
+\usepackage{fancyhdr} %For headers and footers
+\pagestyle{fancy}     %For headers and footers
+\usepackage{lastpage} %For getting page x of y
+\usepackage{float}    %Allows the figures to be positioned and formatted nicely
+\usepackage{hyperref}
+\usepackage{framed}
+\usepackage{verbatim}
+\usepackage{placeins}
+\usepackage{rotating} % For sidewaysfigure
+%Define all the headers and footers
+%\lhead{Left Header}
+%\chead{Center Header}
+\rhead{\today}
+\lfoot{}
+%\cfoot{Centre Footer}
+%\rfoot{\thepage\ of \pageref{LastPage}}
+
+% Regex to find bad underscores
+%{\\tt[^}]+[^\\]_
+
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0},
+}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+
+<<echo=FALSE>>=
+library(ggplot2)
+library(plyr)
+library(reshape2)
+library(xtable)
+library(scales)
+library(data.table)
+library(grid) # For unit()
+@
+
+
+<<echo=FALSE>>=
+options(continue="  ")
+# Set up ggplot theme
+theme_update(axis.title=element_text(size=8),
+             axis.text=element_text(size=8,color="grey50"),
+             legend.title=element_text(size=8),
+             legend.text=element_text(size=8),
+             plot.title=element_text(size=9),
+             strip.text=element_text(size=7),
+						 plot.margin=unit(c(0.1,0.1,0.1,0.1),"cm"))
+@
+
+
+\title{Notes on Think Stats Chapter 1}
+\author{John Rauser}
+\date {2013-05-11}
+\maketitle
+
+\section{Exercise 1-1}
+
+The study isn't logitudinal because it doesn't track the same people over time.  Each of the six samples include a different set of respondents.
+
+\section{Exercise 1-2}
+
+Here's R code that implements {\tt survey.py}.
+
+<<>>=
+fem_resp_raw<-readLines("2002FemResp.dat")
+#head(fem_resp_raw,1)
+#str(fem_resp_raw)
+
+fem_resp<-transform(data.frame(record=fem_resp_raw),
+                    caseid=as.integer(substr(record, 1, 12)))
+
+fem_resp$record<-NULL
+summary(fem_resp)
+nrow(fem_resp)
+@
+
+
+<<>>=
+fem_preg_raw<-readLines("2002FemPreg.dat")
+#head(fem_preg_raw,1)
+#str(fem_preg_raw)
+
+fem_preg<-transform(data.frame(record=fem_preg_raw),
+                    caseid=      as.integer(substr(record, 1, 12)),
+                    nbrnaliv=    as.integer(substr(record, 22, 22)),
+                    babysex=     factor(substr(record, 56, 56)),
+                    birthwgt_lb= as.integer(substr(record, 57, 58)),
+                    birthwgt_oz= as.integer(substr(record, 59, 60)),
+                    prglength=   as.integer(substr(record, 275, 276)),
+                    outcome=     factor(substr(record, 277, 277)),
+                    birthord=    as.integer(substr(record, 278, 279)),
+                    agepreg=     as.integer(substr(record, 284, 287))/100,
+                    finalwgt=    as.numeric(substr(record, 423, 440)))
+
+fem_preg<-transform(fem_preg,
+                    totalwgt_oz=ifelse(birthwgt_lb < 20 & birthwgt_oz <= 16,
+                                       birthwgt_lb * 16 + birthwgt_oz,
+                                       NA))
+fem_preg$record<-NULL
+summary(fem_preg)
+nrow(fem_preg)
+
+@
+
+\section{Exercise 1-3}
+
+2. There were \Sexpr{format(sum(fem_preg$outcome==1),big.mark=",")} live births.  Below is the count of each outcome.
+
+<<>>=
+table(fem_preg$outcome)
+@
+
+This is consistent with \url{http://www.icpsr.umich.edu/nsfg6/Controller?displayPage=labelDetails&fileCode=PREG&section=&subSec=8014&srtLabel=611785}
+
+3. 
+
+Weird. It looks like outcome is recorded for first births only.  The data is at odds with the documentation at \url{http://www.icpsr.umich.edu/nsfg6/Controller?displayPage=labelDetails&fileCode=PREG&section=&subSec=8014&srtLabel=611775}.  
+
+<<>>=
+table(fem_preg$birthord,fem_preg$outcome)
+sum(table(fem_preg$birthord))
+@
+
+4. 
+
+<<>>=
+mean(fem_preg$prglength)
+ddply(fem_preg,.(birthord),summarize,mean_preglength=mean(prglength))
+
+fem_preg<-transform(fem_preg,is_first= (birthord==1))
+ddply(fem_preg,.(is_first),summarize,n=length(prglength),mean_preglength=mean(prglength))
+
+(38.600-38.523)*(24*7)
+@
+
+\begin{figure}[H]
+\makebox[\textwidth][c]{
+\setkeys{Gin}{width=4.75in}
+<<fig=TRUE,echo=FALSE,png=FALSE,pdf=TRUE,eps=FALSE,width=4.75,height=2.5>>=
+ggplot(ddply(subset(fem_preg,!is.na(birthord)),
+						 .(birthord),summarize,mean_preglength=mean(prglength)),
+			 aes(factor(birthord),mean_preglength))+geom_point()+
+	xlab("Pregnancy length (weeks)")+ylab("Birth order")
+@
+}
+\caption{The mean pregnancy length by birth-order.  Live births only.  Each subsequent baby comes earlier on average?}
+\end{figure}
+
+
+<<echo=FALSE>>=
+save(fem_preg, fem_resp, file="thinkstats.RData")
+@
+
+
+\end{document}
