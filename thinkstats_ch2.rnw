@@ -144,7 +144,7 @@ prglength_summary<-transform(prglength_summary,
 prglength_summary
 
 born_this_week<-function(age) {
-	dat<-subset(prglength_summary,prglength>=age)
+  dat<-subset(prglength_summary,prglength>=age)
   dat$prob<-dat$count/sum(dat$count)
   return(dat$prob[dat$prglength==age])
 }
